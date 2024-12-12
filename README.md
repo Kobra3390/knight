@@ -65,3 +65,12 @@ Puoi anche visualizzare l'help o la versione dello script utilizzando:
 ./knight.sh --help
 ./knight.sh --version
 ```
+
+## Credits
+
+Questo progetto prende spunto da:
+
+- [vrikodar](https://github.com/vrikodar/Lemon)
+- [stealthcopter](https://github.com/stealthcopter/deepce)
+- [eversinc33](https://github.com/eversinc33/JailWhale)
+
