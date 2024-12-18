@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.2.6${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.3.6${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.2.6${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.3.6${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -236,11 +236,24 @@ function search_wordpress_config() {
     echo
 }
 
+# Function to search writeble directory
+function check_writable_dirs() {
+    echo -e "\n${BPurple}Scanning for writable directories...${NC}"
+    writable_dirs=$(find / -path /proc -prune -o -type d -perm -o+w 2>/dev/null)
+    
+    if [[ -n "$writable_dirs" ]]; then
+        echo -e "\n${BPurple}Writable directories found:${NC}\n"
+        echo "$writable_dirs"
+    else
+        echo -e "\n${BRed}No writable directories found.${NC}"
+    fi
+}
+
 # Function to exit the program
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.2.6${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.3.6${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -693,6 +706,7 @@ function main() {
         "search_wordpress_config" \
         "console_clear" \
         "docker-scan" \
+        "check_writable_dirs" \
         "check_logrotten" \
         "check_dirty_cow" \
         "check_CVE_2023_26604" \
@@ -734,6 +748,8 @@ function main() {
                     su_gids;;
                 bash_history)
                     bash_history;;
+                check_writable_dirs)
+                    check_writable_dirs;;
                 config_code)
                     config_code;;
                 hidden_service_and_network)
@@ -777,7 +793,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.2.6${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.3.6${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi

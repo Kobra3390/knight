@@ -33,19 +33,19 @@ Quando avvii knight, viene mostrata un menu interattivo che consente di selezion
      /_|_\ 
 
 
-[+] Knight-v(4.2.6) initialzing on kali at 22:01:19
+[+] Knight-v(4.3.6) initialzing on kali at 12:40:25
 
 [+] Choose the option number from the menu below! 
 
-1) Sudo                             10) bash_history                    19) check_CVE_2023_26604
-2) tty_shell                        11) config_code                     20) Shellshock_vulnerability_check
-3) passwd_shadow                    12) hidden_service_and_network      21) check_CVE_2016_0728
-4) whoisthis                        13) NFS_shares                      22) check_CVE_2016_1531
-5) capabilities                     14) search_wordpress_config         23) check_CVE_2010_0426
-6) cronjobs                         15) console_clear                   24) check-2023-22809
-7) keys_ssh                         16) docker-scan                     25) exit
-8) docker                           17) check_logrotten
-9) SU_GIDs                          18) check_dirty_cow
+1) Sudo                             10) bash_history                    19) check_dirty_cow
+2) tty_shell                        11) config_code                     20) check_CVE_2023_26604
+3) passwd_shadow                    12) hidden_service_and_network      21) Shellshock_vulnerability_check
+4) whoisthis                        13) NFS_shares                      22) check_CVE_2016_0728
+5) capabilities                     14) search_wordpress_config         23) check_CVE_2016_1531
+6) cronjobs                         15) console_clear                   24) check_CVE_2010_0426
+7) keys_ssh                         16) docker-scan                     25) check-2023-22809
+8) docker                           17) check_writable_dirs             26) exit
+9) SU_GIDs                          18) check_logrotten
 
 (knight@hostname)-[~/path/to/directory]~#
 ```
