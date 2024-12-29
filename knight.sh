@@ -139,9 +139,21 @@ function cronjobs() {
 
 # Function to display SSH keys
 function keys_ssh() {
-    # Display SSH keys
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}See some ${BPurple}SSH keys?${NC}"
-    find / -name id_rsa 2> /dev/null
+    # Search for SSH keys
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Looking for ${BPurple}SSH keys?${NC}"
+    
+    # Define common directories for SSH keys
+    common_dirs=("$HOME/.ssh" "/root/.ssh" "/etc/ssh")
+    
+    # Search for private keys in common directories
+    ssh_keys=$(find "${common_dirs[@]}" -type f \( -name "id_rsa" -o -name "id_ecdsa" -o -name "id_ed25519" -o -name "*.pem" \) 2>/dev/null)
+    
+    # Check if any SSH keys were found
+    if [[ -n "$ssh_keys" ]]; then
+        echo -e "${BGreen}[+] Found SSH keys:${NC}\n$ssh_keys"
+    else
+        echo -e "\n${BRed}[-] No SSH keys found in common locations.${NC}"
+    fi
     echo
 }
 
