@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.4.7${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.4.8${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.4.7${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.4.8${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -127,15 +127,39 @@ function capabilities() {
 
 # Function to display cron jobs
 function cronjobs() {
-    # Display cron jobs
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}See some ${BPurple}CronJobs${NC} running as${NC} ${BPurple}root?${NC}"
-    cat /etc/crontab
-    echo
-    echo -e "\n[${BPurple}+${NC}] in ${BPurple}/var/spool/cron${NC}"
-    ls -la /var/spool/cron
-    ls -la /var/spool/cron/crontabs
-    echo
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Displaying system-wide CronJobs from${NC} ${BPurple}/etc/crontab${NC}\n"
+    
+    if [[ -r /etc/crontab ]]; then
+        cat /etc/crontab
+    else
+        echo -e "[${BRed}!${NC}] ${BRed}Cannot read /etc/crontab. Check permissions.${NC}"
+    fi
+    
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking directories in${NC} ${BPurple}/var/spool/cron${NC}\n"
+    
+    if [[ -d /var/spool/cron ]]; then
+        ls -la /var/spool/cron
+    else
+        echo -e "[${BRed}!${NC}] ${BRed}/var/spool/cron not found.${NC}"
+    fi
+
+    if [[ -d /var/spool/cron/crontabs ]]; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Listing contents of${NC} ${BPurple}/var/spool/cron/crontabs${NC}\n"
+        
+        # Verifica permessi di lettura
+        if [[ -r /var/spool/cron/crontabs ]]; then
+            ls -la /var/spool/cron/crontabs
+        else
+            echo -e "[${BRed}!${NC}] ${BRed}Permission denied for /var/spool/cron/crontabs.${NC}"
+        fi
+    else
+        echo -e "[${BRed}!${NC}] ${BRed}/var/spool/cron/crontabs not found.${NC}"
+    fi
+
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking current user's CronJobs${NC}"
+    crontab -l 2>/dev/null || echo -e "[${BRed}!${NC}] ${BRed}No crontab found for current user.${NC}"
 }
+
 
 # Function to display SSH keys
 function keys_ssh() {
@@ -339,7 +363,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.4.7${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.4.8${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -879,7 +903,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.4.7${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.4.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
