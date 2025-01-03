@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.5.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.6.8${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.5.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.6.8${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -357,10 +357,22 @@ function console_clear() {
 
 # Function to display NFS shares
 function nfs() {
-    # Display NFS shares
     echo -e "\n[${BPurple}+${NC}] ${BBlue}Is there${NC} any ${BPurple}NFS?${NC}"
-    cat /etc/exports
-    echo
+    
+    # Check read permissions for /etc/exports
+    if [[ -r /etc/exports ]]; then
+        cat /etc/exports
+    else
+        echo -e "\n[${BRed}!${NC}] ${BRed}Cannot access /etc/exports. Check permissions.${NC}"
+    fi
+    
+    # Verify the presence of showmount command to list NFS clients
+    if command -v showmount &>/dev/null; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Active NFS mounts:${NC}"
+        showmount -e 2>/dev/null || echo -e "\n[${BRed}!${NC}] ${BRed}No active NFS exports found.${NC}"
+    else
+        echo -e "[${BRed}!${NC}] ${BRed}showmount command not available. Consider installing nfs-common.${NC}"
+    fi
 }
 
 # Function to search for WordPress configuration files
@@ -388,7 +400,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.5.8${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.6.8${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -467,10 +479,17 @@ function check_dirty_cow_vulnerability() {
 function check_CVE_2023_26604() {
     # Check for systemd CVE-2023-26604
     echo -e "\nCheck systemd version for CVE-2023-26604..."
+    
+    if command -v systemctl &>/dev/null; then
+        local version=$(systemctl --version | awk 'NR==1{print $2}')
+    elif command -v systemd &>/dev/null; then
+        local version=$(systemd --version | awk 'NR==1{print $2}')
+    else
+        echo -e "[${BRed}!${NC}] ${BRed}Systemd or systemctl not found. Unable to check CVE-2023-26604.${NC}"
+        return 1
+    fi
 
-    local version=$(systemd --version | awk 'NR==1{print $2}')
-
-    if [ "$version" \< "247" ]; then
+    if [[ "$version" < "247" ]]; then
         echo -e "\nSystemd ${BPurple}is Vulnerable${NC} to CVE-2023-26604 [ systemd version: $version ]"
     else
         echo -e "\nSystemd ${BPurple}is Not Vulnerable${NC} to ${BPurple}CVE-2023-26604${NC} [ systemd version: ${BPurple}$version${NC} ]"
@@ -548,7 +567,7 @@ _EOF
 }
 
 # Function to check for CVE-2023-22809 vulnerability
-function check-2023-22809() {
+function check_2023_22809() {
     # Check sudo version
     sudo_version=$(sudo -V | grep "Sudo version" | awk '{print $3}')
     echo -e "\nVersion of sudo installed: ${BBlue}$sudo_version${NC}"
@@ -840,16 +859,16 @@ function main() {
         "search_wordpress_config" \
         "console_clear" \
         "docker-scan" \
-        "check_writable_dirs" \
         "check_gtfobins" \
+        "check_writable_dirs" \
         "check_logrotten" \
         "check_dirty_cow" \
-        "check_CVE_2023_26604" \
         "Shellshock_vulnerability_check" \
         "check_CVE_2016_0728" \
         "check_CVE_2016_1531" \
         "check_CVE_2010_0426" \
-        "check-2023-22809" \
+        "check_CVE_2023_26604" \
+        "check_CVE_2023_22809" \
         "exit"
 
         do
@@ -909,8 +928,8 @@ function main() {
                     check_CVE_2016_1531;;
                 check_CVE_2010_0426)
                     check_CVE_2010_0426;;
-                check-2023-22809)
-                    check-2023-22809;;
+                check_CVE_2023_22809)
+                    check_2023_22809;;
                 docker-scan)
                     docker-scan;;
             esac    
@@ -928,7 +947,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.5.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.6.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
