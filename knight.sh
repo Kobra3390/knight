@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.6.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.6.9${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.6.8${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.6.9${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -117,12 +117,30 @@ function whoisthis() {
 
 # Function to display capabilities of executables
 function capabilities() {
-    # Display capabilities of executables
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}Eye On${NC} ${BPurple}Capabilities${NC} ${BPurple}:: be paitent this can take time!${NC}"
-    command=$(getcap -r / 2>/dev/null)
-    echo ${command}
-    echo
-    echo ${command} | grep 'python\|python3\|perl'
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking binary capabilities...${NC}\n"
+    getcap -r / 2>/dev/null | while IFS= read -r line; do
+        bin=$(echo "$line" | cut -d' ' -f1)
+        caps=$(echo "$line" | cut -d' ' -f2-)
+        echo -e "${BPurple}Binary:${NC} ${BBlue}$bin${NC} ${BPurple}Capabilities:${NC} ${BGreen}${caps}${NC}"
+    done
+
+    # Identify dangerous capabilities
+    dangerous_caps=("cap_sys_admin" "cap_net_admin" "cap_dac_override" "cap_sys_ptrace" "cap_sys_module" "cap_sys_rawio")
+    found_dangerous=0
+    echo -e "\n[${BPurple}+${NC}] ${BRed}Checking for potentially dangerous capabilities...${NC}\n"
+
+    while IFS= read -r line; do
+        for cap in "${dangerous_caps[@]}"; do
+            if echo "$line" | grep -q "$cap"; then
+                echo -e "[${BRed}!${NC}] ${BRed}Warning:${NC} Found $cap capability on: ${BPurple}$(echo "$line" | cut -d' ' -f1)${NC}"
+                found_dangerous=1
+            fi
+        done
+    done < <(getcap -r / 2>/dev/null)
+
+    if [ $found_dangerous -eq 0 ]; then
+        echo -e "[${BPurple}+${NC}] ${BGreen}No dangerous capabilities found.${NC}"
+    fi
 }
 
 # Function to display cron jobs
@@ -400,7 +418,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.6.8${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.6.9${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -707,7 +725,7 @@ function docker-scan() {
     if pgrep -f "runc" > /dev/null; then
         echo -e "${BGreen}[+] The runc process is running in the container.${NC}"
         
-        # Verifica se è possibile sovrascrivere il binario runc
+        # Check if you can override the runc binary
         if [ -w /proc/self/exe ]; then
             echo -e "${BGreen}[+] The runc binary can be overridden. Container appears to be vulnerable to CVE-2019-5736.${NC}"
         else
@@ -947,7 +965,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.6.8${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.6.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
