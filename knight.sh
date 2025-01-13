@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.6.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.7.9${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.6.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.7.9${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -418,7 +418,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.6.9${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.7.9${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -490,6 +490,28 @@ function check_dirty_cow_vulnerability() {
         echo -e "\nKernel Version (${BPurple}$ver1.$ver2.$ver3${NC}) is not Vulnerable."
     else
         echo -e "\nKernel Version (${BPurple}$ver1.$ver2.$ver3${NC}) is Vulnerable." 
+    fi
+}
+
+# Function to check for CVE-2017-5618 vulnerability
+function check_CVE_2017_5618() {
+    # Check for CVE-2017-5618 vulnerability in GNU Screen
+    echo -e "\n[${BPurple}+${NC}] Checking for ${BBlue}CVE-2017-5618${NC} (GNU Screen Privilege Escalation)..."
+
+    # Check if GNU Screen is installed
+    if command -v screen &> /dev/null; then
+        screen_version=$(screen --version | grep -oP '\d+\.\d+\.\d+')
+        echo -e "${BGray}[.] GNU Screen version: ${screen_version}${NC}"
+
+        # Compare the version to see if it's vulnerable
+        if dpkg --compare-versions "$screen_version" "lt" "4.5.1"; then
+            echo -e "\n${BRed}[!] Vulnerable version of GNU Screen detected (${screen_version}).${NC}"
+            echo -e "${BRed}[!] This system is vulnerable to CVE-2017-5618.${NC}"
+        else
+            echo -e "\n${BGreen}[+] GNU Screen version ${screen_version} is not vulnerable to CVE-2017-5618.${NC}"
+        fi
+    else
+        echo -e "\n${BGray}[.] GNU Screen is not installed on this system.${NC}"
     fi
 }
 
@@ -887,6 +909,7 @@ function main() {
         "check_CVE_2010_0426" \
         "check_CVE_2023_26604" \
         "check_CVE_2023_22809" \
+        "check_CVE_2017_5618" \
         "exit"
 
         do
@@ -944,6 +967,8 @@ function main() {
                     check_CVE_2016_0728;;
                 check_CVE_2016_1531)
                     check_CVE_2016_1531;;
+                check_CVE_2017_5618)
+                    check_CVE_2017_5618;;
                 check_CVE_2010_0426)
                     check_CVE_2010_0426;;
                 check_CVE_2023_22809)
@@ -965,7 +990,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.6.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.7.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
