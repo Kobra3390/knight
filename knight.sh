@@ -6,7 +6,7 @@ echo -e '
       .-.
     __|=|__
    (_/`-`\_)
-   //\___/\\
+   //\___/\\\
    <>/   \<>
     \|_._|/
      <_I_>
@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.7.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.8.9${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.7.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.8.9${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -198,6 +198,62 @@ function keys_ssh() {
     fi
     echo
 }
+
+# Function to monitor system processes
+function monitor_processes() {
+    echo -e "\n[${BPurple}+${NC}] Starting process monitor..."
+    echo -e "[${BBlue}*${NC}] Press Ctrl+C to stop monitoring only this function\n"
+
+    # Store the start time
+    start_time=$(date +%s)
+    keep_running=true
+
+    # Function to extract process info from /proc
+    get_process_info() {
+        local pid=$1
+        local cmdline=""
+        local user=""
+        local timestamp=""
+        
+        # Skip if process has terminated
+        [[ ! -d "/proc/$pid" ]] && return
+
+        # Get command line
+        cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+        [[ -z "$cmdline" ]] && cmdline=$(cat "/proc/$pid/comm" 2>/dev/null)
+        
+        # Get process owner
+        if [[ -r "/proc/$pid/status" ]]; then
+            user=$(awk '/Uid:/{print $2}' "/proc/$pid/status" 2>/dev/null)
+            user=$(getent passwd "$user" 2>/dev/null | cut -d: -f1)
+        fi
+
+        # Get process start time
+        [[ -r "/proc/$pid/stat" ]] && timestamp=$(stat -c %Y "/proc/$pid" 2>/dev/null)
+        
+        # Only show processes that started after monitoring began
+        [[ -n "$timestamp" && "$timestamp" -ge "$start_time" ]] && \
+        echo -e "[${BPurple}$(date '+%H:%M:%S')${NC}] User: ${BBlue}${user:-UNKNOWN}${NC} PID: ${BPurple}${pid}${NC} CMD: ${cmdline}"
+    }
+
+    # Function to scan /proc for new processes
+    scan_processes() {
+        for pid_dir in /proc/[0-9]*; do
+            pid=$(basename "$pid_dir")
+            get_process_info "$pid"
+        done
+    }
+
+    # Set up a trap for Ctrl+C that only affects this function
+    trap 'keep_running=false; echo -e "\n\n[${BPurple}+${NC}] Stopping process monitor...\n"' SIGINT
+
+    # Main monitoring loop
+    while $keep_running; do
+        scan_processes
+        sleep 0.1
+    done
+}
+
 
 # Function to check for Docker presence
 function dker() {
@@ -418,7 +474,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.7.9${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.8.9${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -895,6 +951,7 @@ function main() {
         "bash_history" \
         "config_code" \
         "hidden_service_and_network" \
+        "process_monitor" \
         "NFS_shares" \
         "search_wordpress_config" \
         "console_clear" \
@@ -943,6 +1000,8 @@ function main() {
                     bash_history;;
                 check_writable_dirs)
                     check_writable_dirs;;
+                process_monitor)
+                    monitor_processes;;
                 config_code)
                     config_code;;
                 hidden_service_and_network)
@@ -990,7 +1049,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.7.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.8.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
