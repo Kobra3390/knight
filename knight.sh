@@ -59,13 +59,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.8.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.9.0${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.8.9${NC})\n"
+    echo -e "\nKnight-v(${BPurple}4.9.0${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -264,9 +264,9 @@ function dker() {
 }
 
 # Function to find and analyze SUID binaries using GTFObins techniques
-check_gtfobins() {
+function check_gtfobins() {
     # Print Ascii Art
-    echo -e "${BRed} _____ _____ _____ _____ _____ _         "${NC} 
+    echo -e "\n${BRed} _____ _____ _____ _____ _____ _         "${NC} 
     echo -e "${BRed}|   __|_   _|   __|     | __  |_|___ ___ "${NC}
     echo -e "${BRed}|  |  | | | |   __|  |  | __ -| |   |_ -|"${NC}
     echo -e "${BRed}|_____| |_| |__|  |_____|_____|_|_|_|___|"${NC}
@@ -283,13 +283,13 @@ check_gtfobins() {
         printf "\n${BPurple}Enter the binary name: ${NC}"
         read binary
 
-        # Check if a binary name is provided and if it contains only alphanumeric characters, underscores, and hyphens
-        if [ -z "$binary" ] || [[ ! "$binary" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            echo -e "${BRed}Please provide a valid binary name with only alphanumeric characters, underscores, and hyphens.${NC}"
+        # Check if a binary name is provided and if it contains only alphanumeric characters, underscores, hyphens, and dots
+        if [ -z "$binary" ] || [[ ! "$binary" =~ ^[a-zA-Z0-9_\.-]+$ ]]; then
+            echo -e "${BRed}Please provide a valid binary name with only alphanumeric characters, underscores, hyphens, and dots.${NC}"
             return 1
         fi
 
-        local url="https://gtfobins.github.io/gtfobins/$binary/"
+        local url="https://gtfobins.github.io/gtfobins/${binary//./%2E}/"
 
         # Query gtfobins.github.io for the binary
         local response=$(curl -s "$url")
@@ -336,7 +336,7 @@ check_gtfobins() {
         code=""
         start_code=0
         for line in "${lines[@]}"; do
-            if [[ "$line" =~ ^(export|TF=|echo|nmap|local) ]] || [[ "$line" =~ ^[[:space:]]*[a-zA-Z0-9_]+= ]]; then
+            if [[ "$line" =~ ^(export|TF=|echo|nmap|local|sudo|LFILE=|\.\/) ]] || [[ "$line" =~ ^[[:space:]]*[a-zA-Z0-9_]+= ]]; then
                 if [[ $start_code -eq 0 ]]; then
                     echo -e "\nDescription:\n------------------------"
                     echo -e "${BGray}${description}${NC}"
@@ -431,21 +431,44 @@ function console_clear() {
 
 # Function to display NFS shares
 function nfs() {
-    echo -e "\n[${BPurple}+${NC}] ${BBlue}Is there${NC} any ${BPurple}NFS?${NC}"
-    
-    # Check read permissions for /etc/exports
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking for NFS shares...${NC}"
+
+    # Check permissions for /etc/exports
     if [[ -r /etc/exports ]]; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Contents of /etc/exports:${NC}"
         cat /etc/exports
+        echo
     else
         echo -e "\n[${BRed}!${NC}] ${BRed}Cannot access /etc/exports. Check permissions.${NC}"
     fi
-    
-    # Verify the presence of showmount command to list NFS clients
+
+    # Verify if showmount is available
     if command -v showmount &>/dev/null; then
-        echo -e "\n[${BPurple}+${NC}] ${BBlue}Active NFS mounts:${NC}"
-        showmount -e 2>/dev/null || echo -e "\n[${BRed}!${NC}] ${BRed}No active NFS exports found.${NC}"
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking available NFS exports on localhost...${NC}"
+        showmount -e localhost 2>/dev/null || echo -e "\n[${BRed}!${NC}] ${BRed}No active NFS exports found.${NC}"
     else
-        echo -e "[${BRed}!${NC}] ${BRed}showmount command not available. Consider installing nfs-common.${NC}"
+        echo -e "\n[${BRed}!${NC}] ${BRed}showmount command not available. Consider installing nfs-common.${NC}"
+    fi
+
+    # Check if rpcinfo is available
+    if command -v rpcinfo &>/dev/null; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Checking RPC services...${NC}"
+        rpcinfo -p 2>/dev/null | grep -i nfs || echo -e "\n[${BRed}!${NC}] ${BRed}No NFS-related RPC services found.${NC}"
+    fi
+
+    # Attempt to mount an available NFS export (optional)
+    potential_mount=$(showmount -e localhost 2>/dev/null | awk 'NR>1 {print $1}' | head -n 1)
+    if [[ -n "$potential_mount" ]]; then
+        echo -e "\n[${BPurple}+${NC}] ${BBlue}Attempting to mount $potential_mount...${NC}"
+        mkdir -p /tmp/nfsmount
+        mount -t nfs -o nolock localhost:"$potential_mount" /tmp/nfsmount 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+            echo -e "[${BGreen}+${NC}] Successfully mounted NFS share at /tmp/nfsmount"
+            ls -la /tmp/nfsmount
+            umount /tmp/nfsmount
+        else
+            echo -e "[${BRed}!${NC}] ${BRed}Failed to mount NFS share.${NC}"
+        fi
     fi
 }
 
@@ -474,7 +497,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.8.9${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.9.0${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -1049,7 +1072,7 @@ then
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.8.9${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.9.0${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     # Initialize Knight
     main
 fi
