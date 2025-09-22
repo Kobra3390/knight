@@ -26,6 +26,11 @@ LG="\033[1;37m"
 DG="\033[1;90m" 
 NC="\033[0m"
 
+# Global array to store loaded modules and their functions
+declare -a LOADED_MODULES=()
+declare -A MODULE_FUNCTIONS=()
+declare -A ORIGINAL_FUNCTIONS=()
+
 printSection() {
     # Print a section like:
     # ========================================( Title here )========================================
@@ -40,6 +45,262 @@ printSection() {
     start=$((no/2))
     end=$((no-start))
     echo -e "${BBlue}$(printf '%*s' "$start" '' | tr ' ' '=')${BPurple}${s}${BBlue}$(printf '%*s' "$end" '' | tr ' ' '=')${NC}"
+}
+
+# Function to load external module
+function load_module() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Loading external module...${NC}"
+    
+    # Prompt for module path
+    printf "\n${BPurple}Enter the path to the .sh module file: ${NC}"
+    read module_path
+    
+    # Validate input
+    if [[ -z "$module_path" ]]; then
+        echo -e "${BRed}[!] No module path provided.${NC}"
+        return 1
+    fi
+    
+    # Check if file exists and is readable
+    if [[ ! -f "$module_path" ]]; then
+        echo -e "${BRed}[!] Module file not found: $module_path${NC}"
+        return 1
+    fi
+    
+    if [[ ! -r "$module_path" ]]; then
+        echo -e "${BRed}[!] Module file is not readable: $module_path${NC}"
+        return 1
+    fi
+    
+    # Check if module is already loaded
+    for loaded_module in "${LOADED_MODULES[@]}"; do
+        if [[ "$loaded_module" == "$module_path" ]]; then
+            echo -e "${BRed}[!] Module already loaded: $module_path${NC}"
+            return 1
+        fi
+    done
+    
+    # Get list of current functions before loading module
+    local functions_before=($(declare -F | awk '{print $3}'))
+    
+    # Source the module file
+    if source "$module_path" 2>/dev/null; then
+        # Get list of functions after loading module
+        local functions_after=($(declare -F | awk '{print $3}'))
+        
+        # Find new functions introduced by the module
+        local new_functions=()
+        for func in "${functions_after[@]}"; do
+            local found=false
+            for old_func in "${functions_before[@]}"; do
+                if [[ "$func" == "$old_func" ]]; then
+                    found=true
+                    break
+                fi
+            done
+            if [[ "$found" == false ]]; then
+                new_functions+=("$func")
+            fi
+        done
+        
+        # Store module information
+        LOADED_MODULES+=("$module_path")
+        MODULE_FUNCTIONS["$module_path"]="${new_functions[*]}"
+        
+        echo -e "${BGreen}[+] Module loaded successfully: $module_path${NC}"
+        if [[ ${#new_functions[@]} -gt 0 ]]; then
+            echo -e "${BGreen}[+] Available functions from module:${NC}"
+            for func in "${new_functions[@]}"; do
+                echo -e "    ${BPurple}$func${NC}"
+            done
+        else
+            echo -e "${BGray}[.] No new functions detected in module.${NC}"
+        fi
+    else
+        echo -e "${BRed}[!] Failed to load module: $module_path${NC}"
+        return 1
+    fi
+}
+
+# Function to list loaded modules
+function list_modules() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Currently loaded modules:${NC}"
+    
+    if [[ ${#LOADED_MODULES[@]} -eq 0 ]]; then
+        echo -e "${BGray}[.] No modules loaded.${NC}"
+        return
+    fi
+    
+    for i in "${!LOADED_MODULES[@]}"; do
+        local module_path="${LOADED_MODULES[$i]}"
+        local functions="${MODULE_FUNCTIONS[$module_path]}"
+        
+        echo -e "\n${BBlue}Module $((i+1)):${NC} ${BPurple}$module_path${NC}"
+        if [[ -n "$functions" ]]; then
+            echo -e "${BGreen}Functions:${NC} $functions"
+        else
+            echo -e "${BGray}No functions detected.${NC}"
+        fi
+    done
+}
+
+# Function to unload a specific module
+function unload_module() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Unloading module...${NC}"
+    
+    if [[ ${#LOADED_MODULES[@]} -eq 0 ]]; then
+        echo -e "${BRed}[!] No modules loaded.${NC}"
+        return 1
+    fi
+    
+    # Show available modules
+    echo -e "\n${BGray}Available modules to unload:${NC}"
+    for i in "${!LOADED_MODULES[@]}"; do
+        echo -e "${BGray}$((i+1)). ${LOADED_MODULES[$i]}${NC}"
+    done
+    
+    printf "\n${BPurple}Enter module number to unload (1-${#LOADED_MODULES[@]}): ${NC}"
+    read module_num
+    
+    # Validate input
+    if [[ ! "$module_num" =~ ^[0-9]+$ ]] || [[ "$module_num" -lt 1 ]] || [[ "$module_num" -gt ${#LOADED_MODULES[@]} ]]; then
+        echo -e "${BRed}[!] Invalid module number.${NC}"
+        return 1
+    fi
+    
+    # Get module info
+    local array_index=$((module_num - 1))
+    local module_path="${LOADED_MODULES[$array_index]}"
+    local functions="${MODULE_FUNCTIONS[$module_path]}"
+    
+    # Undefine functions from the module
+    if [[ -n "$functions" ]]; then
+        for func in $functions; do
+            if [[ $(type -t "$func") == "function" ]]; then
+                unset -f "$func"
+                echo -e "${BGray}[.] Unloaded function: $func${NC}"
+            fi
+        done
+    fi
+    
+    # Remove from arrays
+    unset LOADED_MODULES[$array_index]
+    unset MODULE_FUNCTIONS["$module_path"]
+    
+    # Rebuild array without gaps
+    LOADED_MODULES=("${LOADED_MODULES[@]}")
+    
+    echo -e "${BGreen}[+] Module unloaded successfully: $module_path${NC}"
+}
+
+# Function to execute a function from a loaded module
+function execute_module_function() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Execute module function...${NC}"
+    
+    if [[ ${#LOADED_MODULES[@]} -eq 0 ]]; then
+        echo -e "${BRed}[!] No modules loaded.${NC}"
+        return 1
+    fi
+    
+    # Show all available functions from all modules
+    local all_functions=()
+    echo -e "\n${BGray}Available functions from loaded modules:${NC}"
+    
+    local func_index=1
+    for module_path in "${LOADED_MODULES[@]}"; do
+        local functions="${MODULE_FUNCTIONS[$module_path]}"
+        if [[ -n "$functions" ]]; then
+            for func in $functions; do
+                echo -e "${BGray}$func_index. $func ${BPurple}(from: $(basename "$module_path"))${NC}"
+                all_functions+=("$func")
+                ((func_index++))
+            done
+        fi
+    done
+    
+    if [[ ${#all_functions[@]} -eq 0 ]]; then
+        echo -e "${BRed}[!] No functions available in loaded modules.${NC}"
+        return 1
+    fi
+    
+    printf "\n${BPurple}Enter function name to execute: ${NC}"
+    read func_name
+    
+    # Check if function exists and execute it
+    if [[ $(type -t "$func_name") == "function" ]]; then
+        echo -e "\n${BGreen}[+] Executing function: $func_name${NC}"
+        echo -e "${BGray}----------------------------------------${NC}"
+        "$func_name"
+        echo -e "${BGray}----------------------------------------${NC}"
+    else
+        echo -e "${BRed}[!] Function not found: $func_name${NC}"
+    fi
+}
+
+# Function to reload all modules (useful after modifications)
+function reload_modules() {
+    echo -e "\n[${BPurple}+${NC}] ${BBlue}Reloading all modules...${NC}"
+    
+    if [[ ${#LOADED_MODULES[@]} -eq 0 ]]; then
+        echo -e "${BRed}[!] No modules to reload.${NC}"
+        return 1
+    fi
+    
+    # Store current module paths
+    local modules_to_reload=("${LOADED_MODULES[@]}")
+    
+    # Clear current modules
+    for module_path in "${LOADED_MODULES[@]}"; do
+        local functions="${MODULE_FUNCTIONS[$module_path]}"
+        if [[ -n "$functions" ]]; then
+            for func in $functions; do
+                if [[ $(type -t "$func") == "function" ]]; then
+                    unset -f "$func"
+                fi
+            done
+        fi
+    done
+    
+    LOADED_MODULES=()
+    MODULE_FUNCTIONS=()
+    
+    # Reload modules
+    for module_path in "${modules_to_reload[@]}"; do
+        echo -e "${BGray}[.] Reloading: $module_path${NC}"
+        
+        # Get functions before loading
+        local functions_before=($(declare -F | awk '{print $3}'))
+        
+        if source "$module_path" 2>/dev/null; then
+            # Get functions after loading
+            local functions_after=($(declare -F | awk '{print $3}'))
+            
+            # Find new functions
+            local new_functions=()
+            for func in "${functions_after[@]}"; do
+                local found=false
+                for old_func in "${functions_before[@]}"; do
+                    if [[ "$func" == "$old_func" ]]; then
+                        found=true
+                        break
+                    fi
+                done
+                if [[ "$found" == false ]]; then
+                    new_functions+=("$func")
+                fi
+            done
+            
+            # Store module info
+            LOADED_MODULES+=("$module_path")
+            MODULE_FUNCTIONS["$module_path"]="${new_functions[*]}"
+            
+            echo -e "${BGreen}[+] Reloaded: $module_path${NC}"
+        else
+            echo -e "${BRed}[!] Failed to reload: $module_path${NC}"
+        fi
+    done
+    
+    echo -e "${BGreen}[+] Module reload completed.${NC}"
 }
 
 # Function to spawn a tty shell
@@ -59,13 +320,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}4.9.0${NC})\n"
+    echo -e "\nKnight-v(${BPurple}5.0.0${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}4.9.0${NC})\n"
+    echo -e "\nKnight-v(${BPurple}5.0.0${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -497,7 +758,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}4.9.0${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}5.0.0${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -958,7 +1219,6 @@ function docker-scan() {
 
 # Main function
 function main() {
-    # Select options in a loop
     PS3=$(echo -e "\n(${BPurple}knight${NC}@$(uname -a | awk '{print $2}'))-[${BPurple}$(pwd | sed "s|^$HOME|~|")${NC}]~# \n")
     while true; do
         echo -e "[${BPurple}+${NC}] Choose the option ${BRed}number${NC} from the menu below! \n"
@@ -990,6 +1250,11 @@ function main() {
         "check_CVE_2023_26604" \
         "check_CVE_2023_22809" \
         "check_CVE_2017_5618" \
+        "load_module" \
+        "list_modules" \
+        "execute_module_function" \
+        "unload_module" \
+        "reload_modules" \
         "exit"
 
         do
@@ -1057,6 +1322,16 @@ function main() {
                     check_2023_22809;;
                 docker-scan)
                     docker-scan;;
+                load_module)
+                    load_module;;
+                list_modules)
+                    list_modules;;
+                execute_module_function)
+                    execute_module_function;;
+                unload_module)
+                    unload_module;;
+                reload_modules)
+                    reload_modules;;
             esac    
         done
     done
@@ -1070,9 +1345,7 @@ elif [ "${1}" = "--version" ] || [ "${1}" = "-v" ]
 then
     show_version
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
-
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}4.9.0${NC}) ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
-    # Initialize Knight
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}5.0.0${NC}) with Module System ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
     main
 fi
