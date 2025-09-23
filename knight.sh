@@ -103,6 +103,130 @@ function load_module() {
             fi
         done
         
+        # Check for function name conflicts
+        local conflicts=()
+        local conflicting_modules=()
+        
+        for new_func in "${new_functions[@]}"; do
+            # Check if the function already exists in the bash environment
+            # BEFORE searching for it in loaded modules
+            local function_exists=false
+            local conflicting_module=""
+            
+            # Search in already loaded modules
+            for loaded_module in "${LOADED_MODULES[@]}"; do
+                local existing_functions="${MODULE_FUNCTIONS[$loaded_module]}"
+                if [[ " $existing_functions " =~ " $new_func " ]]; then
+                    function_exists=true
+                    conflicting_module="$loaded_module"
+                    break
+                fi
+            done
+            
+            # If conflict found, add to list
+            if [[ "$function_exists" == true ]]; then
+                conflicts+=("$new_func")
+                conflicting_modules+=("$conflicting_module")
+            fi
+        done
+        
+        # Handle conflicts if found
+        if [[ ${#conflicts[@]} -gt 0 ]]; then
+            echo -e "${BRed}[!] Function name conflicts detected:${NC}"
+            for i in "${!conflicts[@]}"; do
+                echo -e "    ${BPurple}${conflicts[$i]}${NC} (conflicts with module: ${BGray}$(basename "${conflicting_modules[$i]}")${NC})"
+            done
+            
+            echo -e "\n${BGray}Choose how to handle conflicts:${NC}"
+            echo -e "${BGray}1. Cancel loading (recommended)${NC}"
+            echo -e "${BGray}2. Overwrite existing functions${NC}"
+            echo -e "${BGray}3. Load with prefixed names (module_functionname)${NC}"
+            
+            printf "\n${BPurple}Enter your choice (1-3): ${NC}"
+            read conflict_choice
+            
+            case "$conflict_choice" in
+                1|"")
+                    echo -e "${BGray}[.] Module loading cancelled to avoid conflicts.${NC}"
+                    # Unload the module that was just sourced
+                    for func in "${new_functions[@]}"; do
+                        if [[ $(type -t "$func") == "function" ]]; then
+                            unset -f "$func"
+                        fi
+                    done
+                    return 1
+                    ;;
+                2)
+                    echo -e "${BRed}[!] Proceeding with overwrite. Previous functions will be lost.${NC}"
+                    # Remove functions from previous modules
+                    for i in "${!conflicts[@]}"; do
+                        local conflict_func="${conflicts[$i]}"
+                        local conflict_module="${conflicting_modules[$i]}"
+                        
+                        # Remove function from previous module list
+                        local existing_funcs="${MODULE_FUNCTIONS[$conflict_module]}"
+                        local updated_funcs=$(echo "$existing_funcs" | sed "s/\b$conflict_func\b//g" | sed 's/  / /g' | sed 's/^ *//;s/ *$//')
+                        MODULE_FUNCTIONS["$conflict_module"]="$updated_funcs"
+                        
+                        echo -e "${BGray}[.] Overwritten function: $conflict_func (was in $(basename "$conflict_module"))${NC}"
+                    done
+                    ;;
+                3)
+                    echo -e "${BGreen}[+] Loading functions with module prefix...${NC}"
+                    module_name=$(basename "$module_path" .sh)
+                    
+                    # Create prefixed versions for conflicting functions
+                    local updated_functions=()
+                    for func in "${new_functions[@]}"; do
+                        if [[ " ${conflicts[*]} " =~ " $func " ]]; then
+                            # Get the function definition and create prefixed version
+                            local func_def=$(declare -f "$func")
+                            if [[ -n "$func_def" ]]; then
+                                # Remove original function
+                                unset -f "$func"
+                                # Create prefixed version
+                                local prefixed_name="${module_name}_$func"
+                                eval "${func_def/$func ()/$prefixed_name ()}"
+                                updated_functions+=("$prefixed_name")
+                                echo -e "    ${BPurple}$func${NC} -> ${BPurple}$prefixed_name${NC}"
+                            fi
+                        else
+                            updated_functions+=("$func")
+                        fi
+                    done
+                    new_functions=("${updated_functions[@]}")
+                    ;;
+                *)
+                    echo -e "${BRed}[!] Invalid choice. Cancelling load.${NC}"
+                    # Unload the module that was just sourced
+                    for func in "${new_functions[@]}"; do
+                        if [[ $(type -t "$func") == "function" ]]; then
+                            unset -f "$func"
+                        fi
+                    done
+                    return 1
+                    ;;
+            esac
+        fi
+        
+        # Check for critical function name conflicts
+        critical_functions=("main" "load_module" "list_modules" "unload_module" "exit_program" "show_help" "show_version")
+        for new_func in "${new_functions[@]}"; do
+            for critical_func in "${critical_functions[@]}"; do
+                if [[ "$new_func" == "$critical_func" ]]; then
+                    echo -e "${BRed}[!] Critical function name detected: $new_func${NC}"
+                    echo -e "${BRed}[!] Cannot load module that overrides core Knight functions.${NC}"
+                    # Unload the module
+                    for func in "${new_functions[@]}"; do
+                        if [[ $(type -t "$func") == "function" ]]; then
+                            unset -f "$func"
+                        fi
+                    done
+                    return 1
+                fi
+            done
+        done
+        
         # Store module information
         LOADED_MODULES+=("$module_path")
         MODULE_FUNCTIONS["$module_path"]="${new_functions[*]}"
@@ -320,13 +444,13 @@ function tty_shell() {
 # Function to display Knight version
 function show_version() {
     # Display Knight version
-    echo -e "\nKnight-v(${BPurple}5.0.0${NC})\n"
+    echo -e "\nKnight-v(${BPurple}5.0.1${NC})\n"
 }
 
 # Function to display Knight help message
 function show_help() {
     # Display Knight help message
-    echo -e "\nKnight-v(${BPurple}5.0.0${NC})\n"
+    echo -e "\nKnight-v(${BPurple}5.0.1${NC})\n"
     echo -e "${BPurple}Usage:${NC}"
     echo -e "	./knight                 {Runs the script in ${BPurple}standard${NC} mode}"
     echo -e "	./knight ${BPurple}--version${NC} or ${BPurple}-v${NC} {Displays the Program ${BPurple}version${NC} and exits}"
@@ -425,7 +549,7 @@ function cronjobs() {
     if [[ -d /var/spool/cron/crontabs ]]; then
         echo -e "\n[${BPurple}+${NC}] ${BBlue}Listing contents of${NC} ${BPurple}/var/spool/cron/crontabs${NC}\n"
         
-        # Verifica permessi di lettura
+        # Check read permissions
         if [[ -r /var/spool/cron/crontabs ]]; then
             ls -la /var/spool/cron/crontabs
         else
@@ -758,7 +882,7 @@ function check_writable_dirs() {
 function exit_program() {
     # Exit the program
     echo ""
-    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}5.0.0${NC}) at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Exiting Knight-v(${BPurple}5.0.1${NC}) at $(date +%T)\n"
     exit 0
 }
 
@@ -1346,6 +1470,7 @@ then
     show_version
     echo -e "\e[3m${BBlue}May the strength of sudoers be with you${NC}\e[0m"
 else
-    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}5.0.0${NC}) with Module System ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    echo -e "\n[${BPurple}+${NC}] Knight-v(${BPurple}5.0.1${NC}) with Module System ${BPurple}initialzing${NC} on ${BPurple}$(uname -a | awk '{print $2}')${NC} at $(date +%T)\n"
+    # Initialize Knight
     main
 fi
